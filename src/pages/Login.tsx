@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import axios from "axios";
+import Cookies from "js-cookie";
 
 export function Login() {
   // 1. 入力された文字を管理するState
@@ -26,8 +27,8 @@ export function Login() {
         password,
       });
 
-      // 🌟 もらったVIPリストバンド（トークン）をブラウザの金庫に保存！
-      localStorage.setItem("token", response.data.token);
+      // 【変更後】 🌟 Cookieに7日間の有効期限付きで保存！
+      Cookies.set("token", response.data.token, { expires: 7 });
       alert("ログイン成功！Todo画面へ移動します。");
 
       // Todo画面へ自動で移動する

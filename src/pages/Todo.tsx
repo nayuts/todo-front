@@ -1,119 +1,76 @@
 // src/pages/Todo.tsx
-import { useEffect, useState, useCallback } from "react";
-import { useNavigate, Link } from "react-router-dom";
-import axios from "axios";
+import { useEffect, useState } from "react";
+import { useAuth } from "../hooks/useAuth";
+import { useTodos, type TodoType } from "../hooks/useTodos";
 
-type TodoItem = {
-  id: number;
-  title: string;
-  description: string;
-};
+export function TodoModal() {
+  const { logout } = useAuth();
+  const { todos, error, fetchTodos, addTodo, deleteTodo, updateTodo } = useTodos();
 
-export function Todo() {
-  const navigate = useNavigate();
-  // 取得したTodoを保存する箱（最初は空っぽの配列）
-  const [todos, setTodos] = useState<TodoItem[]>([]);
-  // エラーメッセージを表示するための箱
-  const [error, setError] = useState("");
+  // 🌟 モーダルの開閉状態を切り替えるためのState（最初はどちらも非表示の false）
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [editingTodo, setEditingTodo] = useState<TodoType | null>(null); // nullなら編集モーダルは閉じている状態
 
-  // 🌟 useCallback で関数全体を包み込み、「メモ化（保存）」する！
-  const fetchTodos = useCallback(async () => {
-    try {
-      const token = localStorage.getItem("token");
-      // ⚠️ エラーの先回り：トークンがない場合はログイン画面へ弾く
-      if (!token) {
-        navigate("/login");
-        return;
-      }
+  // 🌟 フォームへの入力内容を一時保存するState
+  const [formTitle, setFormTitle] = useState("");
+  const [formDesc, setFormDesc] = useState("");
 
-      // axiosでサーバーにリクエストを送信 (GETメソッド)
-      const response = await axios.get("http://localhost:4000/api/todos", {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      // 取得したデータを箱に入れる
-      setTodos(response.data);
-    } catch (err: unknown) {
-      if (axios.isAxiosError(err)) {
-        setError(err.response?.data?.message || "Todoの取得に失敗しました");
-      } else {
-        setError("予期せぬエラーが発生しました");
-      }
-    }
-  }, [navigate]); // 🌟 fetchTodos の中で使っている外部の変数（navigate）をここに指定します
-
-  // 🌟 画面が表示された「最初の一回だけ」実行する
   useEffect(() => {
-    // ⚠️ エラーの先回り：最新のLintルールの誤検知を防ぐコメント
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchTodos();
-  }, [fetchTodos]); // 🌟 useCallbackのおかげで、ここに入れても無限ループになりません！
+  }, [fetchTodos]);
 
-  // ログアウト処理
-  const handleLogout = () => {
-    // 1. localStorageからトークンを削除（シュレッダーにかけるイメージです）
-    localStorage.removeItem("token");
-    // 2. ログイン画面へ強制移動
-    navigate("/login");
+  // 新規追加モーダルの「追加する」ボタンが押された時の処理
+  const handleAddSubmit = async (e: React.SubmitEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    await addTodo(formTitle, formDesc);
+    setIsAddModalOpen(false); // 登録が終わったらモーダルをスッと閉じる
+    setFormTitle("");
+    setFormDesc(""); // 入力欄を綺麗にお掃除（リセット）
   };
 
-  // 🗑️ 削除処理を追加
-  const handleDelete = async (id: number) => {
-    // ⚠️ エラーの先回り：誤操作防止のために確認ダイアログを出す
-    if (!window.confirm("本当に削除しますか？")) return;
+  // 編集モーダルの「更新する」ボタンが押された時の処理
+  const handleEditSubmit = async (e: React.SubmitEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!editingTodo) return;
+    await updateTodo(editingTodo.id, formTitle, formDesc);
+    setEditingTodo(null); // 更新が終わったらモーダルを閉じる
+  };
 
-    try {
-      const token = localStorage.getItem("token");
-      if (!token) {
-        navigate("/login");
-        return;
-      }
-
-      // 🌟 axiosでサーバーに削除リクエスト（DELETEメソッド）を送信
-      // URLの末尾に「どのIDを消すか」を指定します
-      await axios.delete(`http://localhost:4000/api/todos/${id}`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      // 💡 画面上のリストからも該当のTodoを消す（再取得しなくて済むエコな書き方！）
-      setTodos(todos.filter((todo) => todo.id !== id));
-    } catch (err: unknown) {
-      if (axios.isAxiosError(err)) {
-        setError(err.response?.data?.message || "Todoの削除に失敗しました");
-      } else {
-        setError("予期せぬエラーが発生しました");
-      }
-    }
+  // 既存のTodoの「編集」ボタンを押した時の処理
+  const openEditModal = (todo: TodoType) => {
+    // 💡 新たにAPI通信をせず、手元にあるデータをそのままフォームにセットしてモーダルを開く！
+    setFormTitle(todo.title);
+    setFormDesc(todo.description);
+    setEditingTodo(todo);
   };
 
   return (
-    <div style={{ padding: "20px", maxWidth: "600px", margin: "0 auto" }}>
+    <div style={{ padding: "20px", maxWidth: "800px", margin: "0 auto" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <h2>📋 Todo一覧</h2>
         <button
-          onClick={handleLogout}
+          onClick={logout}
           style={{ padding: "5px 10px", backgroundColor: "gray", color: "white" }}
         >
           ログアウト
         </button>
       </div>
 
-      <div style={{ marginBottom: "20px" }}>
-        <Link to="/todos/new">
-          <button
-            style={{ padding: "10px", backgroundColor: "blue", color: "white", width: "100%" }}
-          >
-            新しいTodoを追加
-          </button>
-        </Link>
-      </div>
+      {/* クリックされたら、追加用モーダルのフラグを true にしてフォームを空にする */}
+      <button
+        onClick={() => {
+          setIsAddModalOpen(true);
+          setFormTitle("");
+          setFormDesc("");
+        }}
+        style={{ margin: "20px 0", padding: "10px", backgroundColor: "blue", color: "white" }}
+      >
+        + 新規Todo追加
+      </button>
 
-      {error && <p style={{ color: "red", fontWeight: "bold" }}>{error}</p>}
+      {error && <p style={{ color: "red" }}>{error}</p>}
 
+      {/* Todoリストの表示 */}
       <ul style={{ listStyle: "none", padding: 0 }}>
         {todos.map((todo) => (
           <li
@@ -122,48 +79,186 @@ export function Todo() {
               border: "1px solid #ccc",
               margin: "10px 0",
               padding: "15px",
-              borderRadius: "8px",
               backgroundColor: "white",
             }}
           >
-            <h3 style={{ margin: "0 0 10px 0" }}>{todo.title}</h3>
-            <p style={{ margin: "0 0 15px 0", color: "#555" }}>{todo.description}</p>
-
-            <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
-              {/* ✏️ 編集画面へのリンク（3-2で使用します） */}
-              <Link to={`/todos/${todo.id}/edit`}>
-                <button
-                  style={{
-                    padding: "5px 15px",
-                    backgroundColor: "#4CAF50",
-                    color: "white",
-                    border: "none",
-                    borderRadius: "4px",
-                    cursor: "pointer",
-                  }}
-                >
-                  編集
-                </button>
-              </Link>
-
-              {/* 🗑️ 削除ボタンを追加 */}
-              <button
-                onClick={() => handleDelete(todo.id)}
-                style={{
-                  padding: "5px 15px",
-                  backgroundColor: "#f44336",
-                  color: "white",
-                  border: "none",
-                  borderRadius: "4px",
-                  cursor: "pointer",
-                }}
-              >
+            <h3>{todo.title}</h3>
+            <p>{todo.description}</p>
+            <div style={{ display: "flex", gap: "10px", marginTop: "10px" }}>
+              <button onClick={() => openEditModal(todo)}>編集</button>
+              <button onClick={() => deleteTodo(todo.id)} style={{ color: "red" }}>
                 削除
               </button>
             </div>
           </li>
         ))}
       </ul>
+
+      {/* ==================================================
+          🚀 新規追加モーダル（isAddModalOpen が true の時だけ画面に現れる）
+          ================================================== */}
+      {isAddModalOpen && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            width: "100vw",
+            height: "100vh",
+            backgroundColor: "rgba(0,0,0,0.5)",
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: "white",
+              padding: "30px",
+              borderRadius: "10px",
+              width: "400px",
+            }}
+          >
+            <h3 style={{ textAlign: "center" }}>✨ 新規Todo追加</h3>
+            <form
+              onSubmit={handleAddSubmit}
+              style={{ display: "flex", flexDirection: "column", gap: "15px", marginTop: "20px" }}
+            >
+              <div>
+                <label style={{ fontWeight: "bold" }}>タイトル</label>
+                <input
+                  value={formTitle}
+                  onChange={(e) => setFormTitle(e.target.value)}
+                  placeholder="タスクのタイトル"
+                  required
+                  style={{ width: "100%", padding: "10px", marginTop: "5px" }}
+                />
+              </div>
+              <div>
+                <label style={{ fontWeight: "bold" }}>詳細</label>
+                <textarea
+                  value={formDesc}
+                  onChange={(e) => setFormDesc(e.target.value)}
+                  placeholder="タスクの詳細を入力してください"
+                  rows={4}
+                  required
+                  style={{ width: "100%", padding: "10px", marginTop: "5px" }}
+                />
+              </div>
+              <div style={{ display: "flex", gap: "10px" }}>
+                <button
+                  type="submit"
+                  style={{
+                    flex: 1,
+                    backgroundColor: "blue",
+                    color: "white",
+                    padding: "10px",
+                    border: "none",
+                    borderRadius: "5px",
+                  }}
+                >
+                  追加する
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsAddModalOpen(false)}
+                  style={{
+                    flex: 1,
+                    padding: "10px",
+                    border: "1px solid #ccc",
+                    borderRadius: "5px",
+                  }}
+                >
+                  キャンセル
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ==================================================
+          🚀 編集モーダル（editingTodo にデータが入っている時だけ画面に現れる）
+          ================================================== */}
+      {editingTodo && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            width: "100vw",
+            height: "100vh",
+            backgroundColor: "rgba(0,0,0,0.5)",
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: "white",
+              padding: "30px",
+              borderRadius: "10px",
+              width: "400px",
+            }}
+          >
+            <h3 style={{ textAlign: "center" }}>✏️ Todo編集</h3>
+            <form
+              onSubmit={handleEditSubmit}
+              style={{ display: "flex", flexDirection: "column", gap: "15px", marginTop: "20px" }}
+            >
+              <div>
+                <label style={{ fontWeight: "bold" }}>タイトル</label>
+                <input
+                  value={formTitle}
+                  onChange={(e) => setFormTitle(e.target.value)}
+                  placeholder="タスクのタイトル"
+                  required
+                  style={{ width: "100%", padding: "10px", marginTop: "5px" }}
+                />
+              </div>
+              <div>
+                <label style={{ fontWeight: "bold" }}>詳細</label>
+                <textarea
+                  value={formDesc}
+                  onChange={(e) => setFormDesc(e.target.value)}
+                  placeholder="タスクの詳細を入力してください"
+                  rows={4}
+                  required
+                  style={{ width: "100%", padding: "10px", marginTop: "5px" }}
+                />
+              </div>
+              <div style={{ display: "flex", gap: "10px" }}>
+                <button
+                  type="submit"
+                  style={{
+                    flex: 1,
+                    backgroundColor: "green",
+                    color: "white",
+                    padding: "10px",
+                    border: "none",
+                    borderRadius: "5px",
+                  }}
+                >
+                  更新する
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEditingTodo(null)}
+                  style={{
+                    flex: 1,
+                    padding: "10px",
+                    border: "1px solid #ccc",
+                    borderRadius: "5px",
+                  }}
+                >
+                  キャンセル
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
