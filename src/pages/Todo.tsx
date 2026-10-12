@@ -1,11 +1,19 @@
 // src/pages/Todo.tsx
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom"; // 🌟 ログアウト後の画面移動用
 import { useAuth } from "../hooks/useAuth";
 import { useTodos, type TodoType } from "../hooks/useTodos";
 
 export function TodoModal() {
   const { logout } = useAuth();
+  const navigate = useNavigate();
   const { todos, error, fetchTodos, addTodo, deleteTodo, updateTodo } = useTodos();
+
+  // 🌟 4-5と同じ：トークンの破棄は Context、画面移動はこの画面の担当
+  const handleLogout = () => {
+    logout();
+    navigate("/login");
+  };
 
   // 🌟 モーダルの開閉状態を切り替えるためのState（最初はどちらも非表示の false）
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -49,7 +57,7 @@ export function TodoModal() {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <h2>📋 Todo一覧</h2>
         <button
-          onClick={logout}
+          onClick={handleLogout}
           style={{ padding: "5px 10px", backgroundColor: "gray", color: "white" }}
         >
           ログアウト

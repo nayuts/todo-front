@@ -1,7 +1,7 @@
 // src/pages/EditTodo.tsx
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import axios from "axios";
+import { useTodos } from "../hooks/useTodos";
 
 export function EditTodo() {
   const navigate = useNavigate();
@@ -10,77 +10,29 @@ export function EditTodo() {
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [error, setError] = useState("");
+  const { fetchTodo, updateTodo, error } = useTodos();
 
   // 画面が開いたときに、編集対象のTodoデータを1件だけ取得する
-  const fetchSingleTodo = useCallback(async () => {
-    try {
-      const token = localStorage.getItem("token");
-      if (!token) return navigate("/login");
-
-      // 特定のIDのTodoだけを取得 (GETメソッド)
-      const response = await axios.get(`http://localhost:4000/api/todos/${id}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      // 取得したデータをフォームの初期値としてセット！
-      setTitle(response.data.title);
-      setDescription(response.data.description);
-    } catch (err: unknown) {
-      if (axios.isAxiosError(err)) {
-        setError(err.response?.data?.message || "データの取得に失敗しました");
-      }
-    }
-  }, [id, navigate]);
-
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    fetchSingleTodo();
-  }, [fetchSingleTodo]);
+    const loadTodo = async () => {
+      if (!id) return;
+      const data = await fetchTodo(id);
+      if (data) {
+        setTitle(data.title);
+        setDescription(data.description);
+      }
+    };
+    loadTodo();
+  }, [id, fetchTodo]);
 
   // フォームが送信された時の処理
   const handleUpdate = async (e: React.SubmitEvent<HTMLFormElement>) => {
     // ⚠️ エラーの先回り：画面のリロードを防ぐための1行！
     e.preventDefault();
-    setError("");
 
-    const token = localStorage.getItem("token");
-    if (!token) return navigate("/login");
-
-    try {
-      // ==========================================
-      // 🚀 演習課題：ここに axios を使った PUT 処理を書こう！
-      // ==========================================
-      // [ヒント1] axios.put() を使います（バックエンドの仕様によっては patch の場合もあります）。
-      // [ヒント2] URLは特定のTodoを指す `http://localhost:4000/api/todos/${id}` です。
-      // [ヒント3] POSTの時と同様に、第2引数に { title, description } を渡します。
-      // [ヒント4] 第3引数に headers: { Authorization: ... } を渡します。
-
-      await axios.put(
-        `http://localhost:4000/api/todos/${id}`,
-        {
-          title,
-          description,
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        },
-      );
-
-      // ==========================================
-
-      // 成功したら一覧画面に戻る
-      alert("更新しました！");
-      navigate("/todos");
-    } catch (err: unknown) {
-      if (axios.isAxiosError(err)) {
-        setError(err.response?.data?.message || "Todoの更新に失敗しました");
-      } else {
-        setError("予期せぬエラーが発生しました");
-      }
-    }
+    await updateTodo(Number(id), title, description);
+    alert("更新しました！");
+    navigate("/todos");
   };
 
   return (

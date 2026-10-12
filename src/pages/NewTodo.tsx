@@ -1,58 +1,23 @@
 // src/pages/NewTodo.tsx
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import axios from "axios";
+import { useTodos } from "../hooks/useTodos";
+// import axios from "axios";
 
 export function NewTodo() {
   const navigate = useNavigate();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [error, setError] = useState("");
+
+  const { addTodo, error } = useTodos();
 
   // フォームが送信（Submit）された時の処理
   const handleSubmit = async (e: React.SubmitEvent<HTMLFormElement>) => {
     // ⚠️ エラーの先回り：画面リロードを防ぐための1行
     e.preventDefault();
-    setError("");
 
-    const token = localStorage.getItem("token");
-    if (!token) {
-      navigate("/login");
-      return;
-    }
-
-    try {
-      // ==========================================
-      // 🚀 演習課題：ここに axios を使った POST 処理を書こう！
-      // ==========================================
-      // [ヒント1] axios.post() を使います。
-      // [ヒント2] URLは 'http://localhost:4000/api/todos' です。
-      // [ヒント3] POSTの場合、第2引数に送りたいデータ { title, description } を渡します。
-      // [ヒント4] 第3引数にヘッダー情報 { headers: { Authorization: `Bearer ${token}` } } を渡します。
-
-      await axios.post(
-        "http://localhost:4000/api/todos",
-        {
-          title,
-          description,
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        },
-      );
-      // ==========================================
-
-      // 成功したら一覧画面に戻る
-      navigate("/todos");
-    } catch (err: unknown) {
-      if (axios.isAxiosError(err)) {
-        setError(err.response?.data?.message || "Todoの追加に失敗しました");
-      } else {
-        setError("予期せぬエラーが発生しました");
-      }
-    }
+    await addTodo(title, description);
+    navigate("/todos");
   };
 
   return (
