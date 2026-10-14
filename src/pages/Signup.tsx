@@ -2,9 +2,10 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import axios from "axios";
-import Cookies from "js-cookie";
+import { useAuth } from "../hooks/useAuth";
 
 export function Signup() {
+  const { login } = useAuth();
   // 1. 入力された文字を管理するState
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -28,7 +29,7 @@ export function Signup() {
         password,
       });
 
-      Cookies.set("token", response.data.token, { expires: 7 });
+      await login(response.data.token);
       alert("登録成功！Todo画面へ移動します。");
 
       // Todo画面へ自動で移動する

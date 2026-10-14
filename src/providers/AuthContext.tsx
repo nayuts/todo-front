@@ -1,38 +1,60 @@
 // src/providers/AuthContext.tsx
-import { createContext, useState } from "react";
-import type { ReactNode } from "react"; // 🌟 型だけをインポートする最新のクリーンな書き方
+/* eslint-disable react-refresh/only-export-components */
+// 🌟 useCallback を追加でインポート
+import { createContext, useState, useEffect, useCallback } from "react";
+import type { ReactNode } from "react";
 import Cookies from "js-cookie";
+import axios from "axios";
 
-// 四次元ポケットの中身（型）を定義
 export type AuthContextType = {
-  isAuthenticated: boolean; // 現在ログイン中かどうか
-  login: (token: string) => void;
+  isAuthenticated: boolean;
+  userName: string;
+  login: (token: string) => Promise<void>;
   logout: () => void;
 };
 
-// 🌟 ポケット（Context）の実体を作成して外部に公開する
-// （※フックから参照するため、頭に export をつけます）
-// ⚠️ エラーの先回り：Viteの開発環境（Fast Refresh）が「コンポーネント以外のexport」に過剰反応するため、この1行だけLintを無効化します
-// eslint-disable-next-line react-refresh/only-export-components
 export const AuthContext = createContext<AuthContextType>({} as AuthContextType);
 
-// 🌟 アプリ全体を包み込んでデータを提供するラッパーコンポーネント
 export function AuthProvider({ children }: { children: ReactNode }) {
-  // 初期値は「Cookieにトークンが存在するかどうか（存在すれば true、なければ false）」
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(!!Cookies.get("token"));
+  const [userName, setUserName] = useState<string>("ゲスト");
 
-  const login = (token: string) => {
+  // 🌟 useCallbackでAPI取得関数を安全に使い回せるようにする！
+  const fetchUserProfile = useCallback(async (token: string) => {
+    try {
+      const res = await axios.get("http://localhost:4000/api/users/me", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setUserName(res.data.name);
+    } catch (error) {
+      console.error("プロフィール取得失敗", error);
+    }
+  }, []);
+
+  // 初回アクセス時（リロード時）の処理
+  useEffect(() => {
+    const token = Cookies.get("token");
+    if (token) {
+      // ⚠️ API通信による意図的なState更新のため、Lintの警告を無効化
+      /* eslint-disable */
+      fetchUserProfile(token);
+    }
+  }, [fetchUserProfile]);
+
+  const login = async (token: string) => {
     Cookies.set("token", token, { expires: 7 });
     setIsAuthenticated(true);
+    await fetchUserProfile(token);
   };
 
   const logout = () => {
     Cookies.remove("token");
     setIsAuthenticated(false);
+    setUserName("ゲスト");
   };
 
   return (
-    <AuthContext.Provider value={{ isAuthenticated, login, logout }}>
+    <AuthContext.Provider value={{ isAuthenticated, userName, login, logout }}>
       {children}
     </AuthContext.Provider>
   );

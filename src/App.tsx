@@ -2,7 +2,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { Login } from "./pages/Login";
 import { Signup } from "./pages/Signup";
-import { TodoModal } from "./pages/Todo";
+import { Todo } from "./pages/Todo";
 
 export function App() {
   return (
@@ -13,7 +13,7 @@ export function App() {
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
-          <Route path="/todos" element={<TodoModal />} />
+          <Route path="/todos" element={<Todo />} />
 
           {/* 存在しないURLにアクセスされたら、自動で /login に飛ばす設定 */}
           <Route path="*" element={<Navigate to="/login" replace />} />

@@ -4,8 +4,22 @@ import { useNavigate } from "react-router-dom"; // 🌟 ログアウト後の画
 import { useAuth } from "../hooks/useAuth";
 import { useTodos, type TodoType } from "../hooks/useTodos";
 
-export function TodoModal() {
-  const { logout } = useAuth();
+// 🌟 React Icons と 自作の Button コンポーネントをインポート！
+import {
+  FaPenToSquare,
+  FaListUl,
+  FaPlus,
+  FaArrowRightFromBracket,
+  FaTrash,
+  FaArrowLeft,
+} from "react-icons/fa6";
+import { Button } from "../components/Button";
+
+// 🌟 作成した CSS Modules を styles という名前で読み込む
+import styles from "./Todo.module.css";
+
+export function Todo() {
+  const { logout, userName } = useAuth();
   const navigate = useNavigate();
   const { todos, error, fetchTodos, addTodo, deleteTodo, updateTodo } = useTodos();
 
@@ -53,96 +67,129 @@ export function TodoModal() {
   };
 
   return (
-    <div style={{ padding: "20px", maxWidth: "800px", margin: "0 auto" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <h2>📋 Todo一覧</h2>
-        <button
-          onClick={handleLogout}
-          style={{ padding: "5px 10px", backgroundColor: "gray", color: "white" }}
-        >
-          ログアウト
-        </button>
-      </div>
+    // 🌟 styles.appContainer のように呼び出してモジュールクラスを適用する
+    <div className={styles.appContainer}>
+      {/* 🌟 サイドバー */}
+      <aside className={styles.sidebar}>
+        <div className={styles.sidebarHeader}>
+          <h2>
+            <FaPenToSquare /> MY TODOS
+          </h2>
+        </div>
+        <nav className={styles.sidebarNav}>
+          <ul>
+            <li className={styles.active}>
+              <FaListUl /> Todo一覧
+            </li>
+            <li
+              onClick={() => {
+                setIsAddModalOpen(true);
+                setFormTitle("");
+                setFormDesc("");
+              }}
+            >
+              <FaPlus /> 新規Todo追加
+            </li>
+          </ul>
+        </nav>
+        <div className={styles.sidebarFooter}>
+          {/* 🌟 自作したButtonコンポーネントを使用！ */}
+          <Button onClick={handleLogout} fullWidth>
+            ログアウト
+          </Button>
+        </div>
+      </aside>
 
-      {/* クリックされたら、追加用モーダルのフラグを true にしてフォームを空にする */}
-      <button
-        onClick={() => {
-          setIsAddModalOpen(true);
-          setFormTitle("");
-          setFormDesc("");
-        }}
-        style={{ margin: "20px 0", padding: "10px", backgroundColor: "blue", color: "white" }}
-      >
-        + 新規Todo追加
-      </button>
+      {/* 🌟 メインコンテンツ */}
+      <main className={styles.mainContent}>
+        <header className={styles.topHeader}>
+          {/* 🌟 APIから取得した最新のユーザー名を表示！ */}
+          <h1>Hello, {userName}!</h1>
 
-      {error && <p style={{ color: "red" }}>{error}</p>}
+          <div className={styles.userProfile}>
+            {/* variant="danger" を指定するだけでスタイルが適用される！ */}
+            <Button
+              variant="danger"
+              onClick={handleLogout}
+              className={styles.mobileLogoutBtn}
+              title="ログアウト"
+            >
+              <FaArrowRightFromBracket />
+            </Button>
+          </div>
+        </header>
 
-      {/* Todoリストの表示 */}
-      <ul style={{ listStyle: "none", padding: 0 }}>
-        {todos.map((todo) => (
-          <li
-            key={todo.id}
-            style={{
-              border: "1px solid #ccc",
-              margin: "10px 0",
-              padding: "15px",
-              backgroundColor: "white",
-            }}
-          >
-            <h3>{todo.title}</h3>
-            <p>{todo.description}</p>
-            <div style={{ display: "flex", gap: "10px", marginTop: "10px" }}>
-              <button onClick={() => openEditModal(todo)}>編集</button>
-              <button onClick={() => deleteTodo(todo.id)} style={{ color: "red" }}>
-                削除
-              </button>
-            </div>
-          </li>
-        ))}
-      </ul>
+        <section className={styles.todoSection}>
+          <div className={styles.sectionHeader}>
+            <h2>TODO LIST</h2>
+            <Button
+              onClick={() => {
+                setIsAddModalOpen(true);
+                setFormTitle("");
+                setFormDesc("");
+              }}
+            >
+              <FaPlus /> 新規Task
+            </Button>
+          </div>
+
+          {error && <p style={{ color: "red" }}>{error}</p>}
+
+          <div className={styles.todoList}>
+            {todos.length > 0 && (
+              <div className={styles.todoHeader}>
+                <span>タイトル</span>
+                <span>詳細</span>
+                <span style={{ textAlign: "right" }}>アクション</span>
+              </div>
+            )}
+
+            {todos.map((todo) => (
+              <div key={todo.id} className={styles.todoItem}>
+                <div className={styles.todoTitle}>{todo.title}</div>
+                <div className={styles.todoDesc}>{todo.description}</div>
+                <div className={styles.todoActions}>
+                  <Button variant="secondary" onClick={() => openEditModal(todo)}>
+                    編集
+                  </Button>
+                  <Button variant="danger" onClick={() => deleteTodo(todo.id)}>
+                    <FaTrash />
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      </main>
 
       {/* ==================================================
           🚀 新規追加モーダル（isAddModalOpen が true の時だけ画面に現れる）
           ================================================== */}
       {isAddModalOpen && (
-        <div
-          style={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            width: "100vw",
-            height: "100vh",
-            backgroundColor: "rgba(0,0,0,0.5)",
-            display: "flex",
-            justifyContent: "center",
-            alignItems: "center",
-          }}
-        >
-          <div
-            style={{
-              backgroundColor: "white",
-              padding: "30px",
-              borderRadius: "10px",
-              width: "400px",
-            }}
-          >
+        <div className={styles.modalOverlay}>
+          <div className={styles.modalContent}>
+            <button
+              type="button"
+              className={styles.btnClose}
+              onClick={() => setIsAddModalOpen(false)}
+            >
+              <FaArrowLeft />
+            </button>
             <h3 style={{ textAlign: "center" }}>✨ 新規Todo追加</h3>
             <form
               onSubmit={handleAddSubmit}
               style={{ display: "flex", flexDirection: "column", gap: "15px", marginTop: "20px" }}
             >
-              <div>
+              <div className={styles.formGroup}>
                 <label style={{ fontWeight: "bold" }}>タイトル</label>
                 <input
                   value={formTitle}
                   onChange={(e) => setFormTitle(e.target.value)}
                   placeholder="タスクのタイトル"
                   required
-                  style={{ width: "100%", padding: "10px", marginTop: "5px" }}
                 />
               </div>
-              <div>
+              <div className={styles.formGroup}>
                 <label style={{ fontWeight: "bold" }}>詳細</label>
                 <textarea
                   value={formDesc}
@@ -150,35 +197,13 @@ export function TodoModal() {
                   placeholder="タスクの詳細を入力してください"
                   rows={4}
                   required
-                  style={{ width: "100%", padding: "10px", marginTop: "5px" }}
                 />
               </div>
-              <div style={{ display: "flex", gap: "10px" }}>
-                <button
-                  type="submit"
-                  style={{
-                    flex: 1,
-                    backgroundColor: "blue",
-                    color: "white",
-                    padding: "10px",
-                    border: "none",
-                    borderRadius: "5px",
-                  }}
-                >
-                  追加する
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setIsAddModalOpen(false)}
-                  style={{
-                    flex: 1,
-                    padding: "10px",
-                    border: "1px solid #ccc",
-                    borderRadius: "5px",
-                  }}
-                >
+              <div className={styles.modalActions}>
+                <Button type="submit">追加する</Button>
+                <Button type="button" variant="light" onClick={() => setIsAddModalOpen(false)}>
                   キャンセル
-                </button>
+                </Button>
               </div>
             </form>
           </div>
@@ -189,43 +214,26 @@ export function TodoModal() {
           🚀 編集モーダル（editingTodo にデータが入っている時だけ画面に現れる）
           ================================================== */}
       {editingTodo && (
-        <div
-          style={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            width: "100vw",
-            height: "100vh",
-            backgroundColor: "rgba(0,0,0,0.5)",
-            display: "flex",
-            justifyContent: "center",
-            alignItems: "center",
-          }}
-        >
-          <div
-            style={{
-              backgroundColor: "white",
-              padding: "30px",
-              borderRadius: "10px",
-              width: "400px",
-            }}
-          >
+        <div className={styles.modalOverlay}>
+          <div className={styles.modalContent}>
+            <button type="button" className={styles.btnClose} onClick={() => setEditingTodo(null)}>
+              <FaArrowLeft />
+            </button>
             <h3 style={{ textAlign: "center" }}>✏️ Todo編集</h3>
             <form
               onSubmit={handleEditSubmit}
               style={{ display: "flex", flexDirection: "column", gap: "15px", marginTop: "20px" }}
             >
-              <div>
+              <div className={styles.formGroup}>
                 <label style={{ fontWeight: "bold" }}>タイトル</label>
                 <input
                   value={formTitle}
                   onChange={(e) => setFormTitle(e.target.value)}
                   placeholder="タスクのタイトル"
                   required
-                  style={{ width: "100%", padding: "10px", marginTop: "5px" }}
                 />
               </div>
-              <div>
+              <div className={styles.formGroup}>
                 <label style={{ fontWeight: "bold" }}>詳細</label>
                 <textarea
                   value={formDesc}
@@ -233,35 +241,13 @@ export function TodoModal() {
                   placeholder="タスクの詳細を入力してください"
                   rows={4}
                   required
-                  style={{ width: "100%", padding: "10px", marginTop: "5px" }}
                 />
               </div>
-              <div style={{ display: "flex", gap: "10px" }}>
-                <button
-                  type="submit"
-                  style={{
-                    flex: 1,
-                    backgroundColor: "green",
-                    color: "white",
-                    padding: "10px",
-                    border: "none",
-                    borderRadius: "5px",
-                  }}
-                >
-                  更新する
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setEditingTodo(null)}
-                  style={{
-                    flex: 1,
-                    padding: "10px",
-                    border: "1px solid #ccc",
-                    borderRadius: "5px",
-                  }}
-                >
+              <div className={styles.modalActions}>
+                <Button type="submit">更新する</Button>
+                <Button type="button" variant="light" onClick={() => setEditingTodo(null)}>
                   キャンセル
-                </button>
+                </Button>
               </div>
             </form>
           </div>
