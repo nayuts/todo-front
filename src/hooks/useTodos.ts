@@ -1,7 +1,8 @@
 // src/hooks/useTodos.ts
-import { useState, useCallback } from "react";
 import axios from "axios";
 import Cookies from "js-cookie";
+// 🌟 React Query の強力なフックたち
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 export type TodoType = {
   id: number;
@@ -9,89 +10,76 @@ export type TodoType = {
   description: string;
 };
 
-// 🌟 Todoに関する操作（CRUD）をすべてまとめた自分専用のカスタムフック
-export function useTodos() {
-  const [todos, setTodos] = useState<TodoType[]>([]);
-  const [error, setError] = useState("");
+// ヘッダーを生成する便利関数
+const getHeaders = () => ({
+  headers: { Authorization: `Bearer ${Cookies.get("token")}` },
+});
 
-  // 毎回ヘッダーにトークンを乗せる処理を自動化する便利関数
-  const getHeaders = () => ({
-    headers: { Authorization: `Bearer ${Cookies.get("token")}` },
+export function useTodos() {
+  const queryClient = useQueryClient();
+
+  // ==========================================
+  // 1. 取得 (GET): useQuery
+  // ==========================================
+  // 🌟 データの取得、ローディング状態(isLoading)、エラー状態(isError)をすべて自動管理！
+  const {
+    data: todos = [],
+    isLoading,
+    isError,
+  } = useQuery({
+    queryKey: ["todos"], // このデータの「名札」
+    queryFn: async () => {
+      const res = await axios.get("http://localhost:4000/api/todos", getHeaders());
+      return res.data as TodoType[];
+    },
   });
 
-  // 1. 全件取得（GET）
-  const fetchTodos = useCallback(async () => {
-    try {
-      const res = await axios.get("http://localhost:4000/api/todos", getHeaders());
-      setTodos(res.data);
-    } catch (err) {
-      if (axios.isAxiosError(err)) setError("データの取得に失敗しました");
-    }
-  }, []);
+  // ==========================================
+  // 2. 追加 (POST): useMutation
+  // ==========================================
+  const addTodoMutation = useMutation({
+    mutationFn: async (newTodo: { title: string; description: string }) => {
+      await axios.post("http://localhost:4000/api/todos", newTodo, getHeaders());
+    },
+    // 🌟 成功したら、['todos']という名札のデータを古いとみなし、自動でGETをやり直させる！
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["todos"] });
+    },
+  });
 
-  // 2. 1件だけ取得（GET: 既存の編集画面用）
-  const fetchTodo = useCallback(async (id: string) => {
-    try {
-      const res = await axios.get(`http://localhost:4000/api/todos/${id}`, getHeaders());
-      return res.data; // コンポーネント側で直接データを受け取るため、値をそのまま返す
-    } catch (err) {
-      if (axios.isAxiosError(err)) setError("データの取得に失敗しました");
-      return null;
-    }
-  }, []);
-
-  // 3. 追加（POST）
-  const addTodo = async (title: string, description: string) => {
-    try {
-      await axios.post("http://localhost:4000/api/todos", { title, description }, getHeaders());
-      fetchTodos(); // 追加に成功したら、自動で最新の一覧を取り直して画面を更新する
-    } catch (err) {
-      if (axios.isAxiosError(err)) setError("Todoの追加に失敗しました");
-    }
-  };
-
-  // 4. 削除（DELETE）
-  const deleteTodo = async (id: number) => {
-    if (!window.confirm("本当に削除しますか？")) return;
-    try {
+  // ==========================================
+  // 3. 削除 (DELETE): useMutation
+  // ==========================================
+  const deleteTodoMutation = useMutation({
+    mutationFn: async (id: number) => {
+      if (!window.confirm("本当に削除しますか？")) throw new Error("Canceled");
       await axios.delete(`http://localhost:4000/api/todos/${id}`, getHeaders());
-      // 💡 画面のリストからも削除したIDのものを除外してあげる
-      setTodos(todos.filter((t) => t.id !== id));
-    } catch (err) {
-      if (axios.isAxiosError(err)) setError("Todoの削除に失敗しました");
-    }
-  };
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["todos"] }),
+  });
 
-  // 5. 更新（PUT）
   // ==========================================
-  // 🚀 演習課題：ここに updateTodo 関数を作成しよう！
+  // 4. 更新 (PUT): useMutation
   // ==========================================
-  // [ヒント1] 引数は (id: number, title: string, description: string) を受け取ります
-  // [ヒント2] axios.put() を使って特定のURL `.../api/todos/${id}` へデータを送信します
-  // [ヒント3] 第2引数に送るデータ、第3引数に getHeaders() を渡します
-  // [ヒント4] 成功したら fetchTodos() を呼んで最新の一覧に更新します
-
-  const updateTodo = async (id: number, title: string, description: string) => {
-    try {
+  const updateTodoMutation = useMutation({
+    mutationFn: async (todo: { id: number; title: string; description: string }) => {
       await axios.put(
-        `http://localhost:4000/api/todos/${id}`,
-        { title, description },
+        `http://localhost:4000/api/todos/${todo.id}`,
+        { title: todo.title, description: todo.description },
         getHeaders(),
       );
-      fetchTodos();
-    } catch (err) {
-      if (axios.isAxiosError(err)) setError("Todoの更新に失敗しました");
-    }
-  };
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["todos"] }),
+  });
 
-  // フックの外側（コンポーネント）で自由に使いたいものだけを厳選して return する
+  // 🌟 コンポーネント側で使いやすいように、必要なものだけをreturnする
   return {
     todos,
-    error,
-    fetchTodos,
-    fetchTodo,
-    addTodo,
-    deleteTodo,
-    updateTodo,
+    isLoading, // 👈 ロード中かどうかが一瞬でわかる！
+    isError,
+    // mutateAsync を渡すことで、今まで通り await addTodo(...) として使える
+    addTodo: addTodoMutation.mutateAsync,
+    deleteTodo: deleteTodoMutation.mutateAsync,
+    updateTodo: updateTodoMutation.mutateAsync,
   };
 }

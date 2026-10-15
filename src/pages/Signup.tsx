@@ -29,7 +29,7 @@ export function Signup() {
         password,
       });
 
-      await login(response.data.token);
+      login(response.data.token);
       alert("登録成功！Todo画面へ移動します。");
 
       // Todo画面へ自動で移動する

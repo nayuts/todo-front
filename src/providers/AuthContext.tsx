@@ -1,7 +1,8 @@
 // src/providers/AuthContext.tsx
 /* eslint-disable react-refresh/only-export-components */
-// 🌟 useCallback を追加でインポート
-import { createContext, useState, useEffect, useCallback } from "react";
+import { createContext, useState } from "react";
+// 🌟 React Query のフックをインポート
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import Cookies from "js-cookie";
 import axios from "axios";
@@ -9,52 +10,49 @@ import axios from "axios";
 export type AuthContextType = {
   isAuthenticated: boolean;
   userName: string;
-  login: (token: string) => Promise<void>;
+  login: (token: string) => void; // 🌟 同期処理に戻るため Promise<void> から void に変更
   logout: () => void;
 };
 
 export const AuthContext = createContext<AuthContextType>({} as AuthContextType);
 
+// 🌟 APIを叩く純粋な関数（Contextの外に出してスッキリ！）
+const fetchUserProfile = async (token: string): Promise<string> => {
+  const res = await axios.get("http://localhost:4000/api/users/me", {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return res.data.name;
+};
+
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(!!Cookies.get("token"));
-  const [userName, setUserName] = useState<string>("ゲスト");
+  // isAuthenticated という独立したStateを廃止し、tokenの有無だけで管理する安全な設計へ！
+  const [token, setToken] = useState<string | undefined>(Cookies.get("token"));
+  const queryClient = useQueryClient();
 
-  // 🌟 useCallbackでAPI取得関数を安全に使い回せるようにする！
-  const fetchUserProfile = useCallback(async (token: string) => {
-    try {
-      const res = await axios.get("http://localhost:4000/api/users/me", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      setUserName(res.data.name);
-    } catch (error) {
-      console.error("プロフィール取得失敗", error);
-    }
-  }, []);
+  // 🌟 ここがReact Query（useQuery）！
+  // tokenが存在する(enabled: !!token)時だけ、自動的に fetchUserProfile が実行されます。
+  // useEffect を使った手動のバケツリレーはもう不要です。
+  const { data: userName = "ゲスト" } = useQuery({
+    queryKey: ["userProfile", token], // tokenが変わるたびに自動で再取得
+    queryFn: () => fetchUserProfile(token!),
+    enabled: !!token,
+  });
 
-  // 初回アクセス時（リロード時）の処理
-  useEffect(() => {
-    const token = Cookies.get("token");
-    if (token) {
-      // ⚠️ API通信による意図的なState更新のため、Lintの警告を無効化
-      /* eslint-disable */
-      fetchUserProfile(token);
-    }
-  }, [fetchUserProfile]);
-
-  const login = async (token: string) => {
-    Cookies.set("token", token, { expires: 7 });
-    setIsAuthenticated(true);
-    await fetchUserProfile(token);
+  const login = (newToken: string) => {
+    Cookies.set("token", newToken, { expires: 7 });
+    setToken(newToken); // 🌟 Stateが変わると、上のuseQueryが自動でプロフィールを取りに行ってくれる！
   };
 
   const logout = () => {
     Cookies.remove("token");
-    setIsAuthenticated(false);
-    setUserName("ゲスト");
+    setToken(undefined);
+    // 🌟 ログアウト時は、React Queryのキャッシュ（記憶）も綺麗にお掃除する
+    queryClient.removeQueries({ queryKey: ["userProfile"] });
   };
 
   return (
-    <AuthContext.Provider value={{ isAuthenticated, userName, login, logout }}>
+    // !!token で「tokenがあればtrue、なければfalse」という真偽値に変換
+    <AuthContext.Provider value={{ isAuthenticated: !!token, userName, login, logout }}>
       {children}
     </AuthContext.Provider>
   );

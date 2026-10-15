@@ -1,5 +1,5 @@
 // src/pages/Todo.tsx
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom"; // 🌟 ログアウト後の画面移動用
 import { useAuth } from "../hooks/useAuth";
 import { useTodos, type TodoType } from "../hooks/useTodos";
@@ -12,6 +12,7 @@ import {
   FaArrowRightFromBracket,
   FaTrash,
   FaArrowLeft,
+  FaSpinner,
 } from "react-icons/fa6";
 import { Button } from "../components/Button";
 
@@ -21,13 +22,7 @@ import styles from "./Todo.module.css";
 export function Todo() {
   const { logout, userName } = useAuth();
   const navigate = useNavigate();
-  const { todos, error, fetchTodos, addTodo, deleteTodo, updateTodo } = useTodos();
-
-  // 🌟 4-5と同じ：トークンの破棄は Context、画面移動はこの画面の担当
-  const handleLogout = () => {
-    logout();
-    navigate("/login");
-  };
+  const { todos, isLoading, isError, addTodo, deleteTodo, updateTodo } = useTodos();
 
   // 🌟 モーダルの開閉状態を切り替えるためのState（最初はどちらも非表示の false）
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -37,25 +32,29 @@ export function Todo() {
   const [formTitle, setFormTitle] = useState("");
   const [formDesc, setFormDesc] = useState("");
 
-  useEffect(() => {
-    fetchTodos();
-  }, [fetchTodos]);
+  // 🌟 4-5と同じ：トークンの破棄は Context、画面移動はこの画面の担当
+  const handleLogout = () => {
+    logout();
+    navigate("/login");
+  };
 
   // 新規追加モーダルの「追加する」ボタンが押された時の処理
   const handleAddSubmit = async (e: React.SubmitEvent<HTMLFormElement>) => {
     e.preventDefault();
-    await addTodo(formTitle, formDesc);
-    setIsAddModalOpen(false); // 登録が終わったらモーダルをスッと閉じる
+    // 🌟 引数の渡し方を、オブジェクト形式 { title, description } に変更！
+    await addTodo({ title: formTitle, description: formDesc });
+    setIsAddModalOpen(false);
     setFormTitle("");
-    setFormDesc(""); // 入力欄を綺麗にお掃除（リセット）
+    setFormDesc("");
   };
 
   // 編集モーダルの「更新する」ボタンが押された時の処理
   const handleEditSubmit = async (e: React.SubmitEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!editingTodo) return;
-    await updateTodo(editingTodo.id, formTitle, formDesc);
-    setEditingTodo(null); // 更新が終わったらモーダルを閉じる
+    // 🌟 こちらもオブジェクト形式に変更！
+    await updateTodo({ id: editingTodo.id, title: formTitle, description: formDesc });
+    setEditingTodo(null);
   };
 
   // 既存のTodoの「編集」ボタンを押した時の処理
@@ -65,6 +64,33 @@ export function Todo() {
     setFormDesc(todo.description);
     setEditingTodo(todo);
   };
+
+  // 🌟 データ取得中の画面表示（ローディング）
+  if (isLoading) {
+    return (
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          height: "100vh",
+          fontSize: "2rem",
+          color: "var(--primary-color)",
+        }}
+      >
+        <FaSpinner style={{ animation: "spin 1s linear infinite" }} />
+      </div>
+    );
+  }
+
+  // 🌟 エラー時の画面表示
+  if (isError) {
+    return (
+      <div style={{ color: "red", textAlign: "center", marginTop: "50px" }}>
+        データの取得に失敗しました。
+      </div>
+    );
+  }
 
   return (
     // 🌟 styles.appContainer のように呼び出してモジュールクラスを適用する
@@ -133,8 +159,6 @@ export function Todo() {
             </Button>
           </div>
 
-          {error && <p style={{ color: "red" }}>{error}</p>}
-
           <div className={styles.todoList}>
             {todos.length > 0 && (
               <div className={styles.todoHeader}>
@@ -175,13 +199,10 @@ export function Todo() {
             >
               <FaArrowLeft />
             </button>
-            <h3 style={{ textAlign: "center" }}>✨ 新規Todo追加</h3>
-            <form
-              onSubmit={handleAddSubmit}
-              style={{ display: "flex", flexDirection: "column", gap: "15px", marginTop: "20px" }}
-            >
+            <h3 className={styles.modalTitle}>✨ 新規Todo追加</h3>
+            <form onSubmit={handleAddSubmit}>
               <div className={styles.formGroup}>
-                <label style={{ fontWeight: "bold" }}>タイトル</label>
+                <label>タイトル</label>
                 <input
                   value={formTitle}
                   onChange={(e) => setFormTitle(e.target.value)}
@@ -189,8 +210,9 @@ export function Todo() {
                   required
                 />
               </div>
+
               <div className={styles.formGroup}>
-                <label style={{ fontWeight: "bold" }}>詳細</label>
+                <label>詳細</label>
                 <textarea
                   value={formDesc}
                   onChange={(e) => setFormDesc(e.target.value)}
@@ -199,6 +221,7 @@ export function Todo() {
                   required
                 />
               </div>
+
               <div className={styles.modalActions}>
                 <Button type="submit">追加する</Button>
                 <Button type="button" variant="light" onClick={() => setIsAddModalOpen(false)}>
@@ -216,16 +239,15 @@ export function Todo() {
       {editingTodo && (
         <div className={styles.modalOverlay}>
           <div className={styles.modalContent}>
-            <button type="button" className={styles.btnClose} onClick={() => setEditingTodo(null)}>
+            <button type="button" onClick={() => setEditingTodo(null)} className={styles.btnClose}>
               <FaArrowLeft />
             </button>
-            <h3 style={{ textAlign: "center" }}>✏️ Todo編集</h3>
-            <form
-              onSubmit={handleEditSubmit}
-              style={{ display: "flex", flexDirection: "column", gap: "15px", marginTop: "20px" }}
-            >
+
+            <h3 className={styles.modalTitle}>✏️ Todo編集</h3>
+
+            <form onSubmit={handleEditSubmit}>
               <div className={styles.formGroup}>
-                <label style={{ fontWeight: "bold" }}>タイトル</label>
+                <label>タイトル</label>
                 <input
                   value={formTitle}
                   onChange={(e) => setFormTitle(e.target.value)}
@@ -233,16 +255,18 @@ export function Todo() {
                   required
                 />
               </div>
+
               <div className={styles.formGroup}>
-                <label style={{ fontWeight: "bold" }}>詳細</label>
+                <label>詳細</label>
                 <textarea
                   value={formDesc}
                   onChange={(e) => setFormDesc(e.target.value)}
-                  placeholder="タスクの詳細を入力してください"
+                  placeholder="タスクの詳細"
                   rows={4}
                   required
                 />
               </div>
+
               <div className={styles.modalActions}>
                 <Button type="submit">更新する</Button>
                 <Button type="button" variant="light" onClick={() => setEditingTodo(null)}>
